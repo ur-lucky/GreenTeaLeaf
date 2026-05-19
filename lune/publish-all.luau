@@ -19,7 +19,7 @@ local function exec(cmdline: string | { string }, options: process.SpawnOptions?
 
 	local program = table.remove(pieces, 1)
 	assert(program ~= nil, "cmdline must include a program")
-	local result = process.spawn(program, pieces, options :: any)
+	local result = process.exec(program, pieces, options :: any)
 	if not result.ok then
 		process.exit(result.code)
 	end
@@ -30,9 +30,9 @@ end
 local function zip(out: string, items: { string })
 	local result
 	if process.os == "windows" then
-		result = process.spawn("C:\\Windows\\system32\\tar.exe", { "-a", "-cf", out, unpack(items) })
+		result = process.exec("C:\\Windows\\system32\\tar.exe", { "-a", "-cf", out, unpack(items) })
 	else
-		result = process.spawn("zip", { "-r", out, unpack(items) })
+		result = process.exec("zip", { "-r", out, unpack(items) })
 	end
 
 	if not result.ok then
@@ -93,7 +93,6 @@ exec({
 fs.removeFile("GreenTeaLeaf.rbxm")
 
 exec("wally publish")
-exec("wally publish", { cwd = "src-t-standalone-wally" })
 
 -- Publish lune version
 -- (makes temporary changes which we use Git to undo)
@@ -119,7 +118,3 @@ fs.removeFile("GreenTeaLeaf-lune.zip")
 -- Reset FS changes
 
 exec("git reset --hard HEAD", { shell = true })
-
--- Publish docs
-
-exec("lune run moonwave -- build --publish", { shell = true })
