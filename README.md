@@ -1,5 +1,6 @@
 # 🍵 GreenTeaLeaf
-**A fork of GreenTea** to support Solver V2
+**A fork of GreenTea** to support Solver V2. Available with `wally`.
+
 An experimental runtime typechecker for Roblox Luau, with matching 'tooling-time' Luau types.
 
 [Docs](https://corecii.github.io/GreenTea/)
@@ -21,7 +22,7 @@ Please leave feedback on the issues page. Thank you!
 
 ### with Wally (for Rojo)
 1. [Install Wally](https://wally.run/install)
-2. Add `GreenTea = "corecii/greentea@0.4.11"` to your `wally.toml`
+2. Add `GreenTea = "ur-lucky/greentealeaf@0.5.1"` to your `wally.toml`
 
 ### Standalone (for non-Rojo)
 - Download from [the Releases page](https://github.com/corecii/greentea/releases)
