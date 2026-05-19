@@ -4,6 +4,11 @@
 
 Nothing yet!
 
+## 0.5.1
+- Fixed literals improperly being typed
+- Fixed unions giving type errors
+- Fixed built types not resolving to their intended type
+
 ## 0.5.0
 
 - Added support for `New Type Solver`

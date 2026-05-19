@@ -27,5 +27,3 @@ replaceVersion("README.md", `@{lastVersion}`, `@{nextVersion}`)
 replaceVersion("README.md", `version = "^{lastVersion}"`, `version = "^{nextVersion}"`)
 
 replaceVersion("wally.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
-replaceVersion("src-t-standalone-wally/wally.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
-replaceVersion("src-t-standalone-wally/wally.toml", `@={lastVersion}`, `@={nextVersion}`)
