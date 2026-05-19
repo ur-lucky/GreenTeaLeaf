@@ -4,6 +4,12 @@
 
 Nothing yet!
 
+## 0.5.0
+
+- Added support for `New Type Solver`
+  - String literals can now be typed
+- Removed pesde support for fork
+
 ## 0.4.11
 
 - Add `GreenTea.wrapFn`, `GreenTea.wrapFnArgs`, and `GreenTea.wrapFnReturns`

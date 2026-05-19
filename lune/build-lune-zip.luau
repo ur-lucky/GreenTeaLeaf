@@ -49,6 +49,6 @@ end
 fs.writeDir("lune-build")
 
 fs.copy("src", "lune-build/GreenTea")
-zip("GreenTea-lune.zip", { "-C", "lune-build", "GreenTea" })
+zip("GreenTeaLeaf-lune.zip", { "-C", "lune-build", "GreenTeaLeaf" })
 
 fs.removeDir("lune-build")

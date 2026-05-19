@@ -22,23 +22,3 @@ for _, name in fs.readDir("src") do
 		end)
 	end)
 end
-
-rewrite(`src-t-standalone-pesde/t.luau`, function(str)
-	return str:gsub("require%(script.Parent.roblox_packages.GreenTea%)", 'require("./lune_packages/GreenTea")')
-end)
-
-rewrite("pesde.toml", function(str)
-	local data = serde.decode("toml", str)
-	data.target.environment = "lune"
-	data.target.build_files = nil
-
-	return serde.encode("toml", data, true)
-end)
-
-rewrite("src-t-standalone-pesde/pesde.toml", function(str)
-	local data = serde.decode("toml", str)
-	data.target.environment = "lune"
-	data.target.build_files = nil
-
-	return serde.encode("toml", data, true)
-end)

@@ -1,357 +1,220 @@
-local GreenTea = require(script.Parent.GreenTea)
-local isA = require(script.Parent.InstanceClasses)
+--!strict
 
-local t = {}
+local GreenTeaLeaf = require("./GreenTeaLeaf")
 
-type Typechecker = (...any) -> (boolean, any?)
+type Typechecker = (unknown) -> (boolean, string?)
+type TypecheckerConstructor<T...> = (T...) -> Typechecker
 
-type TypecheckerConstr<T... = ()> = (T...) -> Typechecker
-
-local function asPlainFn(fn: (...any) -> ...any): Typechecker
-	return function()
-		return fn()
+local function fromSchema<T>(schema: GreenTeaLeaf.Type<T>): Typechecker
+	local erased = (schema :: unknown) :: GreenTeaLeaf.Type<unknown>
+	return function(value: unknown): (boolean, string?)
+		local success, cause = erased:matches(value)
+		return success, if success then nil else cause:formatErr()
 	end
 end
 
-local function asGreenTeaType(thing: any): any
-	if GreenTea.isGtType(thing) then
-		return thing
-	elseif typeof(thing) == "function" then
-		return GreenTea.custom(thing)
-	elseif thing == nil then
-		return GreenTea.none()
-	else
-		return GreenTea.typeof(thing)
+local function asSchema(value: unknown): GreenTeaLeaf.Type<unknown>
+	if GreenTeaLeaf.isGtType(value) then
+		return (value :: unknown) :: GreenTeaLeaf.Type<unknown>
 	end
+
+	if typeof(value) == "function" then
+		local checker = (value :: unknown) :: (unknown) -> (boolean, unknown?)
+		return GreenTeaLeaf.custom(function(input: unknown): (boolean, unknown?)
+			return checker(input)
+		end)
+	end
+
+	return (GreenTeaLeaf.typeof(value) :: unknown) :: GreenTeaLeaf.Type<unknown>
 end
 
-local implicitConstructors = {
-	boolean = GreenTea.boolean :: Typechecker,
-	buffer = (GreenTea.buffer :: any) :: Typechecker,
-	callback = (GreenTea.anyfn :: any) :: Typechecker,
-	["function"] = (GreenTea.anyfn :: any) :: Typechecker,
-	none = (GreenTea.none :: any) :: Typechecker,
-	["nil"] = (GreenTea.none :: any) :: Typechecker,
-	string = asPlainFn(GreenTea.string),
-	table = asPlainFn(GreenTea.anyTable),
-	userdata = asPlainFn(GreenTea.userdata),
-	vector = asPlainFn(GreenTea.vector),
-	number = asPlainFn(GreenTea.number),
-	thread = asPlainFn(GreenTea.coroutine),
-	any = function()
-		return GreenTea.any()
-	end :: Typechecker,
-	nan = function()
-		return GreenTea.withCustom(GreenTea.number({ nan = true }), function(item)
-			return item ~= item
-		end) :: any
-	end :: Typechecker,
-	integer = function()
-		return GreenTea.number({ integer = true }) :: any
-	end :: Typechecker,
-	numberPositive = function()
-		return GreenTea.number({ range = "(0, inf]" }) :: any
-	end :: Typechecker,
-	numberNegative = function()
-		return GreenTea.number({ range = "[-inf, 0)" }) :: any
-	end :: Typechecker,
-	Enum = (GreenTea.Enum :: any) :: Typechecker,
-	EnumItem = (GreenTea.EnumItem :: any) :: Typechecker,
-}
+local t: { [string]: unknown } = {}
 
-local function basicType(name: string): Typechecker
-	return GreenTea.__newBasicType(name)
+t.boolean = fromSchema(GreenTeaLeaf.boolean())
+t.buffer = fromSchema(GreenTeaLeaf.buffer())
+t.callback = fromSchema(GreenTeaLeaf.anyfn())
+t["function"] = t.callback
+t.none = fromSchema(GreenTeaLeaf.none())
+t["nil"] = t.none
+t.string = fromSchema(GreenTeaLeaf.string())
+t.table = fromSchema(GreenTeaLeaf.anyTable())
+t.userdata = fromSchema(GreenTeaLeaf.userdata())
+t.vector = fromSchema(GreenTeaLeaf.Vector3())
+t.number = fromSchema(GreenTeaLeaf.number())
+t.thread = fromSchema(GreenTeaLeaf.thread())
+t.any = function(_value: unknown): (boolean, string?)
+	return true, nil
 end
 
-implicitConstructors.Axes = basicType("Axes")
-implicitConstructors.BrickColor = basicType("BrickColor")
-implicitConstructors.CatalogSearchParams = basicType("CatalogSearchParams")
-implicitConstructors.CFrame = basicType("CFrame")
-implicitConstructors.Color3 = basicType("Color3")
-implicitConstructors.ColorSequence = basicType("ColorSequence")
-implicitConstructors.ColorSequenceKeypoint = basicType("ColorSequenceKeypoint")
-implicitConstructors.DateTime = basicType("DateTime")
-implicitConstructors.DockWidgetPluginGuiInfo = basicType("DockWidgetPluginGuiInfo")
-implicitConstructors.Enums = basicType("Enums")
-implicitConstructors.Faces = basicType("Faces")
-implicitConstructors.FloatCurveKey = basicType("FloatCurveKey")
-implicitConstructors.Font = basicType("Font")
-implicitConstructors.Instance = basicType("Instance")
-implicitConstructors.NumberRange = basicType("NumberRange")
-implicitConstructors.NumberSequence = basicType("NumberSequence")
-implicitConstructors.NumberSequenceKeypoint = basicType("NumberSequenceKeypoint")
-implicitConstructors.OverlapParams = basicType("OverlapParams")
-implicitConstructors.PathWaypoint = basicType("PathWaypoint")
-implicitConstructors.PhysicalProperties = basicType("PhysicalProperties")
-implicitConstructors.Random = basicType("Random")
-implicitConstructors.Ray = basicType("Ray")
-implicitConstructors.RaycastParams = basicType("RaycastParams")
-implicitConstructors.RaycastResult = basicType("RaycastResult")
-implicitConstructors.RBXScriptConnection = basicType("RBXScriptConnection")
-implicitConstructors.RBXScriptSignal = basicType("RBXScriptSignal")
-implicitConstructors.Rect = basicType("Rect")
-implicitConstructors.Region3 = basicType("Region3")
-implicitConstructors.Region3int16 = basicType("Region3int16")
-implicitConstructors.TweenInfo = basicType("TweenInfo")
-implicitConstructors.UDim = basicType("UDim")
-implicitConstructors.UDim2 = basicType("UDim2")
-implicitConstructors.Vector2 = basicType("Vector2")
-implicitConstructors.Vector2int16 = basicType("Vector2int16")
-implicitConstructors.Vector3 = basicType("Vector3")
-implicitConstructors.Vector3int16 = basicType("Vector3int16")
+t.type = function(typeName: string): Typechecker
+	return fromSchema(GreenTeaLeaf.isType(typeName))
+end :: TypecheckerConstructor<string>
 
-t.type = function(typename: string): any
-	return GreenTea.isType(typename)
-end :: TypecheckerConstr<string>
+t.typeof = function(typeName: string): Typechecker
+	return fromSchema(GreenTeaLeaf.isTypeof(typeName))
+end :: TypecheckerConstructor<string>
 
-t.typeof = function(typename: string): any
-	return GreenTea.isTypeof(typename)
-end :: TypecheckerConstr<string>
-
-t.literal = function(...: any): any
+t.literal = function(...: unknown): Typechecker
 	local count = select("#", ...)
 	if count == 0 then
-		return GreenTea.any()
-	elseif count == 1 then
-		return GreenTea.literal(...)
-	else
-		local literals = {}
-		for index = 1, count do
-			table.insert(literals, GreenTea.literal(select(index, ...)))
+		return t.any :: Typechecker
+	end
+
+	local values: { unknown } = {}
+	for index = 1, count do
+		values[index] = select(index, ...)
+	end
+
+	return function(value: unknown): (boolean, string?)
+		for _, expected in values do
+			if value == expected then
+				return true, nil
+			end
 		end
 
-		return GreenTea.union(table.unpack(literals))
+		return false, "expected literal"
 	end
-end :: TypecheckerConstr<...any>
+end :: TypecheckerConstructor<...unknown>
 
 t.exactly = t.literal
 
-t.keyOf = function(keyType: { [any]: any }): any
-	local union = {}
-	for key, _value in pairs(keyType) do
-		table.insert(union, GreenTea.literal(key))
+t.optional = function(checker: unknown): Typechecker
+	local inner = fromSchema(asSchema(checker))
+	return function(value: unknown): (boolean, string?)
+		if value == nil then
+			return true, nil
+		end
+
+		return inner(value)
 	end
-	return GreenTea.union(table.unpack(union))
-end :: TypecheckerConstr<{ [any]: any }>
+end :: TypecheckerConstructor<unknown>
 
-t.valueOf = function(valueType: { [any]: any }): any
-	local union = {}
-	for _key, value in pairs(valueType) do
-		table.insert(union, GreenTea.typeof(value))
-	end
-	return GreenTea.union(table.unpack(union))
-end :: TypecheckerConstr<{ [any]: any }>
-
-t.optional = function(thins: any): any
-	return GreenTea.optional(asGreenTeaType(thins))
-end :: TypecheckerConstr<any>
-
-t.tuple = function(...: any): any
-	local tupleArgs = table.pack(...)
-	for index = 1, tupleArgs.n do
-		tupleArgs[index] = asGreenTeaType(tupleArgs[index])
+t.tuple = function(...: unknown): Typechecker
+	local schemas: { GreenTeaLeaf.Type<unknown> } = {}
+	for index = 1, select("#", ...) do
+		schemas[index] = asSchema(select(index, ...))
 	end
 
-	return GreenTea.tuple(table.unpack(tupleArgs))
-end :: TypecheckerConstr<...any>
+	return fromSchema(GreenTeaLeaf.tuple(table.unpack(schemas)))
+end :: TypecheckerConstructor<...unknown>
 
-t.union = function(...: any)
-	local unionArgs = table.pack(...)
-	for index = 1, unionArgs.n do
-		unionArgs[index] = asGreenTeaType(unionArgs[index])
+t.union = function(first: unknown, second: unknown, third: unknown?): Typechecker
+	local checkers = {
+		fromSchema(asSchema(first)),
+		fromSchema(asSchema(second)),
+		if third == nil then nil else fromSchema(asSchema(third)),
+	}
+
+	return function(value: unknown): (boolean, string?)
+		local lastMessage = "expected union"
+		for _, checker in checkers do
+			local success, message = checker(value)
+			if success then
+				return true, nil
+			end
+			lastMessage = message or lastMessage
+		end
+
+		return false, lastMessage
 	end
-	return GreenTea.union(table.unpack(unionArgs))
-end :: TypecheckerConstr<...any>
+end :: TypecheckerConstructor<unknown, unknown, unknown?>
 
 t.some = t.union
 
-t.intersection = function(...: any): any
-	local intersectionArgs = table.pack(...)
-	for index = 1, intersectionArgs.n do
-		intersectionArgs[index] = asGreenTeaType(intersectionArgs[index])
-	end
-	return GreenTea.intersection(table.unpack(intersectionArgs))
-end :: TypecheckerConstr<...any>
+t.intersection = function(first: unknown, second: unknown, third: unknown?): Typechecker
+	local checkers = {
+		fromSchema(asSchema(first)),
+		fromSchema(asSchema(second)),
+		if third == nil then nil else fromSchema(asSchema(third)),
+	}
 
-t.every = t.intersection
-
-t.keys = function(check: any): any
-	return GreenTea.dictionary(asGreenTeaType(check), GreenTea.any())
-end :: TypecheckerConstr<any>
-
-t.values = function(check: any): any
-	return GreenTea.dictionary(GreenTea.any(), asGreenTeaType(check))
-end :: TypecheckerConstr<any>
-
-t.map = function(key: any, value: any): any
-	return GreenTea.dictionary(asGreenTeaType(key), asGreenTeaType(value))
-end :: TypecheckerConstr<any, any>
-
-t.set = function(key: any): any
-	return GreenTea.dictionary(asGreenTeaType(key), GreenTea.literal(true))
-end :: TypecheckerConstr<any>
-
-t.numberMin = function(min: number): any
-	return GreenTea.number({ range = `[{min}, inf]` })
-end :: TypecheckerConstr<number>
-t.numberMax = function(max: number): any
-	return GreenTea.number({ range = `[-inf, {max}]` })
-end :: TypecheckerConstr<number>
-t.numberConstrained = function(min: number, max: number): any
-	return GreenTea.number({ range = `[{min}, {max}]` })
-end :: TypecheckerConstr<number, number>
-t.numberMinExclusive = function(min: number): any
-	return GreenTea.number({ range = `({min}, inf]` })
-end :: TypecheckerConstr<number>
-t.numberMaxExclusive = function(max: number): any
-	return GreenTea.number({ range = `[-inf, {max})` })
-end :: TypecheckerConstr<number>
-t.numberConstrainedExclusive = function(min: number, max: number): any
-	return GreenTea.number({ range = `({min}, {max})` })
-end :: TypecheckerConstr<number, number>
-
-t.match = function(pattern: string): any
-	return GreenTea.string({ pattern = pattern })
-end :: TypecheckerConstr<string>
-
-t.array = function(typechecker): any
-	return GreenTea.array(asGreenTeaType(typechecker))
-end :: TypecheckerConstr<any>
-
-t.strictArray = function(...: any): any
-	local arrayTypes = { ... }
-	arrayTypes[GreenTea.any()] = GreenTea.never()
-
-	local count = select("#", ...)
-	for index = 1, count do
-		arrayTypes[index] = asGreenTeaType(arrayTypes[index])
-	end
-
-	return GreenTea.table(arrayTypes, { raw = true, count = { min = 0, max = count } })
-end :: TypecheckerConstr<...any>
-
-t.interface = function(interface: { [any]: any }): any
-	local interfaceCleaned = {}
-	for key, value in pairs(interface) do
-		interfaceCleaned[key] = asGreenTeaType(value)
-	end
-
-	return GreenTea.table(interfaceCleaned, { raw = true })
-end :: TypecheckerConstr<{ [any]: any }>
-
-t.strictInterface = function(interface: { [string]: any }): any
-	local interfaceCleaned = {}
-	for key, value in pairs(interface) do
-		interfaceCleaned[key] = asGreenTeaType(value)
-	end
-
-	interfaceCleaned[GreenTea.any()] = GreenTea.never()
-
-	return GreenTea.table(interfaceCleaned, { raw = true })
-end :: TypecheckerConstr<{ [string]: any }>
-
-local function tChildren(children: { [string]: any })
-	local childrenCleaned = {}
-	for key, type in pairs(children) do
-		assert(typeof(key) == "string", "children keys must be strings")
-		childrenCleaned[key] = asGreenTeaType(type)
-	end
-	return function(thing): (boolean, string?)
-		if not thing or typeof(thing) ~= "Instance" then
-			return false, "expected an instance"
-		end
-
-		for key, typechecker in pairs(childrenCleaned) do
-			if not thing:FindFirstChild(key) then
-				return false, "missing child " .. key
-			end
-
-			local success, err = typechecker(thing:FindFirstChild(key))
+	return function(value: unknown): (boolean, string?)
+		for _, checker in checkers do
+			local success, message = checker(value)
 			if not success then
-				return false, err
+				return false, message
 			end
-		end
-
-		local existing = {}
-		for _, child in thing:GetChildren() do
-			if existing[child.Name] then
-				return false, "duplicate child " .. child.Name
-			end
-
-			existing[child.Name] = true
 		end
 
 		return true, nil
 	end
+end :: TypecheckerConstructor<unknown, unknown, unknown?>
+
+t.every = t.intersection
+
+t.array = function(checker: unknown): Typechecker
+	return fromSchema(GreenTeaLeaf.array(asSchema(checker)))
+end :: TypecheckerConstructor<unknown>
+
+local function mapFn(key: unknown, value: unknown): Typechecker
+	return fromSchema(GreenTeaLeaf.dictionary(asSchema(key), asSchema(value)))
 end
 
-t.instanceOf = function(className: string, children: { [string]: any }?): any
-	local childrenCheck = children and tChildren(children)
-	return GreenTea.withCustom(isA(className), function(thing)
-		if thing.ClassName ~= className then
-			return false, "expected an instance of " .. className
-		else
-			if childrenCheck then
-				return childrenCheck(thing)
-			else
-				return true
+t.map = mapFn :: TypecheckerConstructor<unknown, unknown>
+
+t.keys = function(key: unknown): Typechecker
+	return mapFn(key, GreenTeaLeaf.unknown { allowNil = true })
+end :: TypecheckerConstructor<unknown>
+
+t.values = function(value: unknown): Typechecker
+	return mapFn(GreenTeaLeaf.unknown { allowNil = true }, value)
+end :: TypecheckerConstructor<unknown>
+
+t.set = function(key: unknown): Typechecker
+	return mapFn(key, GreenTeaLeaf.literal(true))
+end :: TypecheckerConstructor<unknown>
+
+t.strictInterface = function(fields: { [string]: unknown }): Typechecker
+	local shape: { [string]: GreenTeaLeaf.Type<unknown> } = {}
+	for key, checker in fields do
+		shape[key] = asSchema(checker)
+	end
+
+	return function(value: unknown): (boolean, string?)
+		if typeof(value) ~= "table" then
+			return false, "expected table"
+		end
+
+		local tableValue = value :: { [string]: unknown }
+		for key, schema in shape do
+			local success, cause = schema:matches(tableValue[key])
+			if not success then
+				return false, cause:formatErr()
 			end
 		end
-	end, "InstanceOf")
-end :: TypecheckerConstr<string, { [string]: any }?>
 
-t.instance = t.instanceOf
-
-t.instanceIsA = function(className: string, children: { [string]: any }?): any
-	if children then
-		return GreenTea.withCustom(isA(className), tChildren(children), "Children")
-	else
-		return isA(className)
+		return true, nil
 	end
-end :: TypecheckerConstr<string, { [string]: any }?>
+end :: TypecheckerConstructor<{ [string]: unknown }>
 
-t.children = function(children: { [string]: any }): any
-	return GreenTea.custom(tChildren(children), "Children")
-end :: TypecheckerConstr<{ [string]: any }>
+t.interface = t.strictInterface
 
-t.enum = function(enum: Enum): any
-	return GreenTea.custom(function(thing)
-		if typeof(thing) ~= "EnumItem" then
-			return false, "expected an enum item"
-		end
-		if thing.EnumType ~= enum then
-			return false, "expected an enum item of type " .. tostring(enum)
-		end
-		return true
-	end, `{enum}`)
-end :: TypecheckerConstr<Enum>
+t.numberMin = function(min: number): Typechecker
+	return fromSchema(GreenTeaLeaf.number { range = `[{min}, inf]` })
+end :: TypecheckerConstructor<number>
 
-t.wrap = function<Args..., Returns...>(fn: (Args...) -> Returns..., argsCheck: any): (Args...) -> Returns...
-	local argsChecker: GreenTea.Type = asGreenTeaType(argsCheck)
-	return function(...: any)
-		argsChecker:assert(...)
+t.numberMax = function(max: number): Typechecker
+	return fromSchema(GreenTeaLeaf.number { range = `[-inf, {max}]` })
+end :: TypecheckerConstructor<number>
 
-		return fn(...)
-	end
-end
+t.numberConstrained = function(min: number, max: number): Typechecker
+	return fromSchema(GreenTeaLeaf.number { range = `[{min}, {max}]` })
+end :: TypecheckerConstructor<number, number>
 
-t.strict = function<T>(typechecker: T): T
-	local typechecker = asGreenTeaType(typechecker)
-	return function(...)
-		typechecker:assert(...)
-	end :: any
-end
+t.integer = fromSchema(GreenTeaLeaf.number { integer = true })
 
-type exportedTypes = typeof(t) & typeof(implicitConstructors)
+t.match = function(pattern: string): Typechecker
+	return fromSchema(GreenTeaLeaf.string { pattern = pattern })
+end :: TypecheckerConstructor<string>
 
-local exportedRuntime = setmetatable(t :: any, {
-	__index = function(_self, key)
-		if implicitConstructors[key] then
-			return implicitConstructors[key]()
-		else
-			return nil
-		end
-	end,
-})
+t.instanceIsA = function(className: string): Typechecker
+	return fromSchema(GreenTeaLeaf.isA(className))
+end :: TypecheckerConstructor<string>
 
-return exportedRuntime :: exportedTypes
+t.strict = function(checker: unknown): Typechecker
+	return fromSchema(asSchema(checker))
+end :: TypecheckerConstructor<unknown>
+
+table.freeze(t)
+
+return t

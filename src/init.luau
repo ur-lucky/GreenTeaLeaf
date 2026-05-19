@@ -1,122 +1,108 @@
-local GreenTea = require(script.GreenTea)
+--!strict
+
+local GreenTeaLeaf = require("@self/GreenTeaLeaf")
 local InstanceClasses = require(script.InstanceClasses)
 local tCompat = require(script.tCompat)
 
-export type Cause = GreenTea.Cause
-export type Type = GreenTea.Type
-export type TuplePacked<T...> = GreenTea.TuplePacked<T...>
+export type Cause = GreenTeaLeaf.Cause
+export type Type<T = unknown> = GreenTeaLeaf.Type<T>
+export type BuiltType<T = unknown> = GreenTeaLeaf.BuiltType<T>
+export type TuplePacked<T...> = GreenTeaLeaf.TuplePacked<T...>
 
-local export = {}
+local export = {
+	t = tCompat,
 
-export.t = tCompat
+	isGreenTeaType = GreenTeaLeaf.isGreenTeaLeafType,
+	isGtType = GreenTeaLeaf.isGtType,
 
-export.isGreenTeaType = GreenTea.isGreenTeaType
-export.isGtType = GreenTea.isGtType
+	any = GreenTeaLeaf.any,
+	unknown = GreenTeaLeaf.unknown,
+	never = GreenTeaLeaf.never,
 
-export.any = GreenTea.any
-export.unknown = GreenTea.unknown
-export.never = GreenTea.never
+	boolean = GreenTeaLeaf.boolean,
+	bool = GreenTeaLeaf.bool,
 
-export.boolean = GreenTea.boolean
-export.bool = GreenTea.bool
+	Instance = GreenTeaLeaf.Instance,
+	isA = InstanceClasses,
+	IsA = InstanceClasses,
 
-export.Instance = GreenTea.Instance
-export.isA = InstanceClasses
-export.IsA = InstanceClasses
+	coroutine = GreenTeaLeaf.coroutine,
+	thread = GreenTeaLeaf.thread,
 
-export.coroutine = GreenTea.coroutine
-export.thread = GreenTea.thread
+	buffer = GreenTeaLeaf.buffer,
+	userdata = GreenTeaLeaf.userdata,
 
-export.buffer = GreenTea.buffer
+	Vector2 = GreenTeaLeaf.Vector2,
+	vector = GreenTeaLeaf.vector,
+	Vector3 = GreenTeaLeaf.Vector3,
+	CFrame = GreenTeaLeaf.CFrame,
+	Color3 = GreenTeaLeaf.Color3,
+	UDim = GreenTeaLeaf.UDim,
+	UDim2 = GreenTeaLeaf.UDim2,
+	Ray = GreenTeaLeaf.Ray,
+	Rect = GreenTeaLeaf.Rect,
+	Region3 = GreenTeaLeaf.Region3,
+	BrickColor = GreenTeaLeaf.BrickColor,
+	Font = GreenTeaLeaf.Font,
 
-export.userdata = GreenTea.userdata
+	Enum = GreenTeaLeaf.Enum,
+	EnumItem = GreenTeaLeaf.EnumItem,
 
-export.Vector2 = GreenTea.Vector2
-export.vector = GreenTea.vector
-export.Vector3 = GreenTea.Vector3
-export.CFrame = GreenTea.CFrame
-export.Color3 = GreenTea.Color3
-export.UDim = GreenTea.UDim
-export.UDim2 = GreenTea.UDim2
-export.Ray = GreenTea.Ray
-export.Rect = GreenTea.Rect
-export.Region3 = GreenTea.Region3
-export.BrickColor = GreenTea.BrickColor
-export.Font = GreenTea.Font
+	none = GreenTeaLeaf.none,
+	literal = GreenTeaLeaf.literal,
+	literals = GreenTeaLeaf.literals,
+	literalUnion = GreenTeaLeaf.literalUnion,
+	oneOfLiterals = GreenTeaLeaf.oneOfLiterals,
 
-export.Enum = GreenTea.Enum
-export.EnumItem = GreenTea.EnumItem
+	withCustom = GreenTeaLeaf.withCustom,
+	custom = GreenTeaLeaf.custom,
 
-export.none = GreenTea.none
+	number = GreenTeaLeaf.number,
+	string = GreenTeaLeaf.string,
 
-export.literal = GreenTea.literal
+	isTypeof = GreenTeaLeaf.isTypeof,
+	isType = GreenTeaLeaf.isType,
 
-export.withCustom = GreenTea.withCustom
-export.custom = GreenTea.custom
+	vararg = GreenTeaLeaf.vararg,
+	tuple = GreenTeaLeaf.tuple,
 
-export.number = GreenTea.number
+	args = GreenTeaLeaf.args,
+	returns = GreenTeaLeaf.returns,
+	fn = GreenTeaLeaf.fn,
+	anyfn = GreenTeaLeaf.anyfn,
 
-export.string = GreenTea.string
+	tuplePacked = GreenTeaLeaf.tuplePacked,
 
-export.isTypeof = GreenTea.isTypeof
-export.isType = GreenTea.isType
+	table = GreenTeaLeaf.table,
+	struct = GreenTeaLeaf.struct,
 
-export.vararg = GreenTea.vararg
-export.tuple = GreenTea.tuple
+	anyTable = GreenTeaLeaf.anyTable,
+	array = GreenTeaLeaf.array,
+	dictionary = GreenTeaLeaf.dictionary,
 
-export.args = GreenTea.args
-export.returns = GreenTea.returns
-export.fn = GreenTea.fn
-export.anyfn = GreenTea.anyfn
+	union = GreenTeaLeaf.union,
+	oneOf = GreenTeaLeaf.oneOf,
 
-export.tuplePacked = GreenTea.tuplePacked
+	intersection = GreenTeaLeaf.intersection,
+	allOf = GreenTeaLeaf.allOf,
 
-export.table = GreenTea.table
-export.struct = GreenTea.struct
+	optional = GreenTeaLeaf.optional,
+	opt = GreenTeaLeaf.opt,
 
-export.anyTable = GreenTea.anyTable
-export.array = GreenTea.array
-export.dictionary = GreenTea.dictionary
+	typeof = GreenTeaLeaf.typeof,
 
-export.union = GreenTea.union
-export.oneOf = GreenTea.oneOf
+	typecast = GreenTeaLeaf.typecast,
+	asGreenTeaType = GreenTeaLeaf.asGreenTeaLeafType,
+	asGtType = GreenTeaLeaf.asGtType,
 
-export.intersection = GreenTea.intersection
-export.allOf = GreenTea.allOf
+	build = GreenTeaLeaf.build,
+	meta = GreenTeaLeaf.meta,
 
-export.optional = GreenTea.optional
-export.opt = GreenTea.opt
-
-export.typeof = GreenTea.typeof
-
-export.typecast = GreenTea.typecast
-export.asGreenTeaType = GreenTea.asGreenTeaType
-export.asGtType = GreenTea.asGtType
-
-export.build = GreenTea.build
-
-export.meta = GreenTea.meta
-
-export.wrapFn = GreenTea.wrapFn
-export.wrapFnArgs = GreenTea.wrapFnArgs
-export.wrapFnReturns = GreenTea.wrapFnReturns
+	wrapFn = GreenTeaLeaf.wrapFn,
+	wrapFnArgs = GreenTeaLeaf.wrapFnArgs,
+	wrapFnReturns = GreenTeaLeaf.wrapFnReturns,
+}
 
 table.freeze(export)
-table.freeze(export.isA)
-table.freeze(export.t)
-table.freeze(GreenTea.__Cause)
-table.freeze(GreenTea.__Type)
-
-for key, value in export do
-	GreenTea.__greenteaConstructorsSet[value] = `GreenTea.{key}`
-end
-
-for key: string, value: any in pairs(export.isA :: any) do
-	GreenTea.__greenteaConstructorsSet[value] = `GreenTea.isA.{key}`
-end
-
-for key: string, value: any in pairs(export.t) do
-	GreenTea.__greenteaConstructorsSet[value] = `GreenTea.t.{key}`
-end
 
 return export

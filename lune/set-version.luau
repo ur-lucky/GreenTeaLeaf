@@ -29,7 +29,3 @@ replaceVersion("README.md", `version = "^{lastVersion}"`, `version = "^{nextVers
 replaceVersion("wally.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
 replaceVersion("src-t-standalone-wally/wally.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
 replaceVersion("src-t-standalone-wally/wally.toml", `@={lastVersion}`, `@={nextVersion}`)
-
-replaceVersion("pesde.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
-replaceVersion("src-t-standalone-pesde/pesde.toml", `version = "{lastVersion}"`, `version = "{nextVersion}"`)
-replaceVersion("src-t-standalone-pesde/pesde.toml", `version = "={lastVersion}"`, `version = "={nextVersion}"`)

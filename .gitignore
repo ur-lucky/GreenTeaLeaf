@@ -4,12 +4,7 @@
 /ServerPackages
 /DevPackages
 
-roblox_packages
-lune_packages
-pesde.lock
+*.rbx[lxm]*
 
 /sourcemap.json
 /wally.lock
-
-/build
-/moonwave

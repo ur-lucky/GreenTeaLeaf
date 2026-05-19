@@ -1,6 +1,6 @@
 [package]
-name = "corecii/greentea"
-version = "0.4.11"
+name = "ur-lucky/greentealeaf"
+version = "0.5.0"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
@@ -17,10 +17,3 @@ include = [
 	"selene.toml",
 	".luaurc",
 ]
-
-[dev-dependencies]
-Jest = "jsdotlua/jest@3.6.1-rc.2"
-JestGlobals = "jsdotlua/jest-globals@3.6.1-rc.2"
-RegExp = "jsdotlua/luau-regexp@^0.2.1"
-
-_jest-roblox-shared = "jsdotlua/jest-roblox-shared@3.6.1-rc.2"

@@ -76,7 +76,7 @@ if not changelogEntry then
 	process.exit(1)
 end
 
-exec("rojo build -o GreenTea.rbxm default.project.json")
+exec("rojo build -o GreenTeaLeaf.rbxm default.project.json")
 
 exec({
 	"gh",
@@ -87,30 +87,18 @@ exec({
 	`v{wally.package.version}`,
 	"-n",
 	changelogEntry,
-	"GreenTea.rbxm",
+	"GreenTeaLeaf.rbxm",
 })
 
-fs.removeFile("GreenTea.rbxm")
+fs.removeFile("GreenTeaLeaf.rbxm")
 
 exec("wally publish")
 exec("wally publish", { cwd = "src-t-standalone-wally" })
-
-exec("pesde install")
-exec("pesde publish --yes")
-
-exec("pesde install", { cwd = "src-t-standalone-pesde" })
-exec("pesde publish --yes", { cwd = "src-t-standalone-pesde" })
 
 -- Publish lune version
 -- (makes temporary changes which we use Git to undo)
 
 exec("lune run prepare-lune-version", { shell = true })
-
-exec("pesde install")
-exec("pesde publish --yes")
-
-exec("pesde install", { cwd = "src-t-standalone-pesde" })
-exec("pesde publish --yes", { cwd = "src-t-standalone-pesde" })
 
 -- Add lune to release
 
@@ -120,13 +108,13 @@ end
 
 fs.writeDir("lune-build")
 
-fs.copy("src", "lune-build/GreenTea")
-zip("GreenTea-lune.zip", { "-C", "lune-build", "GreenTea" })
+fs.copy("src", "lune-build/GreenTeaLeaf")
+zip("GreenTeaLeaf-lune.zip", { "-C", "lune-build", "GreenTeaLeaf" })
 
-exec(`gh release upload v{wally.package.version} GreenTea-lune.zip`)
+exec(`gh release upload v{wally.package.version} GreenTeaLeaf-lune.zip`)
 
 fs.removeDir("lune-build")
-fs.removeFile("GreenTea-lune.zip")
+fs.removeFile("GreenTeaLeaf-lune.zip")
 
 -- Reset FS changes
 
