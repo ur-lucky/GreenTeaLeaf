@@ -82,6 +82,8 @@ exec({
 	"gh",
 	"release",
 	"create",
+	"--repo",
+	"ur-lucky/GreenTeaLeaf",
 	`v{wally.package.version}`,
 	"-t",
 	`v{wally.package.version}`,
