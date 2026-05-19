@@ -5,17 +5,17 @@ local GreenTeaLeaf = require("./GreenTeaLeaf")
 type Typechecker = (unknown) -> (boolean, string?)
 type TypecheckerConstructor<T...> = (T...) -> Typechecker
 
-local function fromSchema<T>(schema: GreenTeaLeaf.Type<T>): Typechecker
-	local erased = (schema :: unknown) :: GreenTeaLeaf.Type<unknown>
+local function fromSchema<T>(schema: GreenTeaLeaf.Schema<T>): Typechecker
+	local erased = (schema :: unknown) :: GreenTeaLeaf.Schema<unknown>
 	return function(value: unknown): (boolean, string?)
 		local success, cause = erased:matches(value)
 		return success, if success then nil else cause:formatErr()
 	end
 end
 
-local function asSchema(value: unknown): GreenTeaLeaf.Type<unknown>
+local function asSchema(value: unknown): GreenTeaLeaf.Schema<unknown>
 	if GreenTeaLeaf.isGtType(value) then
-		return (value :: unknown) :: GreenTeaLeaf.Type<unknown>
+		return (value :: unknown) :: GreenTeaLeaf.Schema<unknown>
 	end
 
 	if typeof(value) == "function" then
@@ -25,7 +25,7 @@ local function asSchema(value: unknown): GreenTeaLeaf.Type<unknown>
 		end)
 	end
 
-	return (GreenTeaLeaf.typeof(value) :: unknown) :: GreenTeaLeaf.Type<unknown>
+	return (GreenTeaLeaf.typeof(value) :: unknown) :: GreenTeaLeaf.Schema<unknown>
 end
 
 local t: { [string]: unknown } = {}
@@ -90,12 +90,13 @@ t.optional = function(checker: unknown): Typechecker
 end :: TypecheckerConstructor<unknown>
 
 t.tuple = function(...: unknown): Typechecker
-	local schemas: { GreenTeaLeaf.Type<unknown> } = {}
+	local schemas: { GreenTeaLeaf.Schema<unknown> } = {}
 	for index = 1, select("#", ...) do
 		schemas[index] = asSchema(select(index, ...))
 	end
 
-	return fromSchema(GreenTeaLeaf.tuple(table.unpack(schemas)))
+	local tuple = (GreenTeaLeaf.tuple :: unknown) :: (...unknown) -> GreenTeaLeaf.Schema<unknown>
+	return fromSchema(tuple(table.unpack(schemas)))
 end :: TypecheckerConstructor<...unknown>
 
 t.union = function(first: unknown, second: unknown, third: unknown?): Typechecker
@@ -153,11 +154,11 @@ end
 t.map = mapFn :: TypecheckerConstructor<unknown, unknown>
 
 t.keys = function(key: unknown): Typechecker
-	return mapFn(key, GreenTeaLeaf.unknown { allowNil = true })
+	return mapFn(key, GreenTeaLeaf.unknown({ allowNil = true }))
 end :: TypecheckerConstructor<unknown>
 
 t.values = function(value: unknown): Typechecker
-	return mapFn(GreenTeaLeaf.unknown { allowNil = true }, value)
+	return mapFn(GreenTeaLeaf.unknown({ allowNil = true }), value)
 end :: TypecheckerConstructor<unknown>
 
 t.set = function(key: unknown): Typechecker
@@ -165,7 +166,7 @@ t.set = function(key: unknown): Typechecker
 end :: TypecheckerConstructor<unknown>
 
 t.strictInterface = function(fields: { [string]: unknown }): Typechecker
-	local shape: { [string]: GreenTeaLeaf.Type<unknown> } = {}
+	local shape: { [string]: GreenTeaLeaf.Schema<unknown> } = {}
 	for key, checker in fields do
 		shape[key] = asSchema(checker)
 	end
@@ -190,21 +191,21 @@ end :: TypecheckerConstructor<{ [string]: unknown }>
 t.interface = t.strictInterface
 
 t.numberMin = function(min: number): Typechecker
-	return fromSchema(GreenTeaLeaf.number { range = `[{min}, inf]` })
+	return fromSchema(GreenTeaLeaf.number({ range = `[{min}, inf]` }))
 end :: TypecheckerConstructor<number>
 
 t.numberMax = function(max: number): Typechecker
-	return fromSchema(GreenTeaLeaf.number { range = `[-inf, {max}]` })
+	return fromSchema(GreenTeaLeaf.number({ range = `[-inf, {max}]` }))
 end :: TypecheckerConstructor<number>
 
 t.numberConstrained = function(min: number, max: number): Typechecker
-	return fromSchema(GreenTeaLeaf.number { range = `[{min}, {max}]` })
+	return fromSchema(GreenTeaLeaf.number({ range = `[{min}, {max}]` }))
 end :: TypecheckerConstructor<number, number>
 
-t.integer = fromSchema(GreenTeaLeaf.number { integer = true })
+t.integer = fromSchema(GreenTeaLeaf.number({ integer = true }))
 
 t.match = function(pattern: string): Typechecker
-	return fromSchema(GreenTeaLeaf.string { pattern = pattern })
+	return fromSchema(GreenTeaLeaf.string({ pattern = pattern }))
 end :: TypecheckerConstructor<string>
 
 t.instanceIsA = function(className: string): Typechecker

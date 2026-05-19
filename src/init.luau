@@ -1,11 +1,34 @@
 --!strict
 
 local GreenTeaLeaf = require("@self/GreenTeaLeaf")
-local InstanceClasses = require(script.InstanceClasses)
-local tCompat = require(script.tCompat)
+local InstanceClasses = require("@self/InstanceClasses")
+local tCompat = require("@self/tCompat")
 
+export type Range = GreenTeaLeaf.Range
+export type ErrorInfo = GreenTeaLeaf.ErrorInfo
 export type Cause = GreenTeaLeaf.Cause
+export type BasicInfo = GreenTeaLeaf.BasicInfo
+export type AnyInfo = GreenTeaLeaf.AnyInfo
+export type UnknownInfo = GreenTeaLeaf.UnknownInfo
+export type CustomInfo = GreenTeaLeaf.CustomInfo
+export type NumberInfo = GreenTeaLeaf.NumberInfo
+export type StringInfo = GreenTeaLeaf.StringInfo
+export type ThreadInfo = GreenTeaLeaf.ThreadInfo
+export type InstanceIsAInfo = GreenTeaLeaf.InstanceIsAInfo
+export type LiteralInfo = GreenTeaLeaf.LiteralInfo
+export type TupleInfo = GreenTeaLeaf.TupleInfo
+export type VarargInfo = GreenTeaLeaf.VarargInfo
+export type FnInfo = GreenTeaLeaf.FnInfo
+export type TableIndexerInfo = GreenTeaLeaf.TableIndexerInfo
+export type TableInfo = GreenTeaLeaf.TableInfo
+export type IntersectionInfo = GreenTeaLeaf.IntersectionInfo
+export type UnionInfo = GreenTeaLeaf.UnionInfo
+export type TypeBase = GreenTeaLeaf.TypeBase
+export type Schema<T = unknown> = GreenTeaLeaf.Schema<T>
 export type Type<T = unknown> = GreenTeaLeaf.Type<T>
+export type TupleType<T...> = GreenTeaLeaf.TupleType<T...>
+export type VarargType<T = unknown> = GreenTeaLeaf.VarargType<T>
+export type FnType<T = (...unknown) -> ...unknown> = GreenTeaLeaf.FnType<T>
 export type BuiltType<T = unknown> = GreenTeaLeaf.BuiltType<T>
 export type TuplePacked<T...> = GreenTeaLeaf.TuplePacked<T...>
 

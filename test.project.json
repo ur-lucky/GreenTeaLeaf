@@ -4,8 +4,8 @@
 		"$className": "DataModel",
 		"ServerScriptService": {
 			"$className": "ServerScriptService",
-			"test": {
-				"$path": "test"
+			"tests": {
+				"$path": "tests"
 			},
 			"DevPackages": {
 				"$path": "DevPackages"

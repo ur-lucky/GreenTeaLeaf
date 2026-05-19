@@ -23,6 +23,11 @@ type Pack = { n: number, [number]: unknown }
 
 type function ValueOf(schema: type)
 	if schema:is("table") then
+		local value = schema:readproperty(types.singleton("__value"))
+		if value then
+			return value
+		end
+
 		local phantom = schema:readproperty(types.singleton("__type"))
 		if phantom and phantom:is("function") then
 			local returns = phantom:returns()
@@ -216,31 +221,128 @@ export type Cause = {
 	formatErr: (self: Cause) -> string,
 }
 
-export type Type<T = unknown> = {
+export type BasicInfo = {
+	typeof: string?,
+}
+
+export type AnyInfo = {
+	allowNil: boolean?,
+}
+
+export type UnknownInfo = {
+	allowNil: boolean?,
+}
+
+export type CustomInfo = {
+	type: Schema<unknown>?,
+	name: string,
+	typechecker: (unknown) -> (boolean, unknown?),
+}
+
+export type NumberInfo = {
+	range: Range?,
+	integer: boolean?,
+	nan: boolean?,
+}
+
+export type StringInfo = {
+	pattern: string?,
+	bytes: Range?,
+	graphemes: Range?,
+	unicode: boolean?,
+}
+
+export type ThreadInfo = {
+	status: { [string]: boolean }?,
+}
+
+export type InstanceIsAInfo = {
+	class: string,
+}
+
+export type LiteralInfo = {
+	value: unknown,
+}
+
+export type TupleInfo = {
+	contents: { Schema<unknown> },
+	vararg: Schema<unknown>?,
+}
+
+export type VarargInfo = {
+	type: Schema<unknown>,
+	length: Range?,
+}
+
+export type FnInfo = {
+	args: Schema<unknown>,
+	returns: Schema<unknown>,
+}
+
+export type TableIndexerInfo = {
+	key: Schema<unknown>,
+	value: Schema<unknown>,
+}
+
+export type TableInfo = {
+	contents: { [string]: Schema<unknown> },
+	indexer: TableIndexerInfo?,
+	array: boolean?,
+	count: Range?,
+	raw: boolean?,
+}
+
+export type IntersectionInfo = {
+	contents: { Schema<unknown> },
+}
+
+export type UnionInfo = {
+	contents: { Schema<unknown> },
+	optional: boolean?,
+}
+
+export type TypeBase = {
+	basic: BasicInfo?,
+	any: AnyInfo?,
+	unknown: UnknownInfo?,
+	custom: CustomInfo?,
+	number: NumberInfo?,
+	string: StringInfo?,
+	thread: ThreadInfo?,
+	instanceIsA: InstanceIsAInfo?,
+	literal: LiteralInfo?,
+	tuple: TupleInfo?,
+	vararg: VarargInfo?,
+	fn: FnInfo?,
+	table: TableInfo?,
+	intersection: IntersectionInfo?,
+	union: UnionInfo?,
+}
+
+export type Schema<T = unknown> = {
 	kind: string,
 	meta: { [string]: unknown }?,
+	read __value: T,
 	__type: () -> T,
-
-	basic: unknown?,
-	any: unknown?,
-	unknown: unknown?,
-	custom: unknown?,
-	number: unknown?,
-	string: unknown?,
-	thread: unknown?,
-	instanceIsA: unknown?,
-	literal: unknown?,
-	tuple: unknown?,
-	vararg: unknown?,
-	fn: unknown?,
-	table: unknown?,
-	intersection: unknown?,
-	union: unknown?,
-
 	matches: (self: unknown, ...unknown) -> (boolean, Cause),
-	assert: (self: unknown, ...unknown) -> T,
 	format: (self: unknown) -> string,
+	assert: (self: unknown, ...unknown) -> T,
 	type: (self: unknown) -> T,
+}
+
+export type Type<T = unknown> = TypeBase & Schema<T>
+
+export type TupleType<T...> = Schema<unknown> & {
+	__pack: () -> T...,
+	tuple: TupleInfo,
+}
+
+export type VarargType<T = unknown> = Schema<T> & {
+	vararg: VarargInfo,
+}
+
+export type FnType<T = (...unknown) -> ...unknown> = Schema<T> & {
+	fn: FnInfo,
 }
 
 export type BuiltType<T = unknown> = Type<T>
@@ -686,11 +788,12 @@ local function makeType(kind: string, format: string, matcher: Matcher): Runtime
 		_basicTypeof = nil,
 		_fnInfo = nil,
 		_tupleRole = nil,
-		__type = phantomValue,
+		__value = nil :: any,
+		__type = phantomValue :: any,
 		matches = matchesType,
-		assert = assertType,
+		assert = assertType :: any,
 		format = formatType,
-		type = phantomType,
+		type = phantomType :: any,
 	}
 
 	return runtime
@@ -879,7 +982,7 @@ local function basic(kind: PrimitiveKind): RuntimeType<unknown>
 	return schema
 end
 
-function GreenTeaLeaf.__newBasicType(kind: PrimitiveKind): Type<unknown>
+function GreenTeaLeaf.__newBasicType(kind: PrimitiveKind): Schema<unknown>
 	return basic(kind)
 end
 
@@ -891,7 +994,7 @@ end
 GreenTeaLeaf.isGtType = GreenTeaLeaf.isGreenTeaLeafType
 
 --- Creates a new GreenTeaLeaf Type that matches any value, excluding nil.
-function GreenTeaLeaf.any(options: { allowNil: boolean? }?): Type<any>
+function GreenTeaLeaf.any(options: { allowNil: boolean? }?): Schema<any>
 	local allowNil = if options then options.allowNil == true else false
 	local schema = (
 		makeType("any", if allowNil then "any?" else "any", function(pack)
@@ -907,7 +1010,7 @@ end
 --- Creates a new GreenTeaLeaf Type that matches any value, excluding nil.\
 --- This returns the unknown type, which has different behavior from any.\
 --- The runtime typechecking behavior is the same as GreenTeaLeaf.any.
-function GreenTeaLeaf.unknown(options: { allowNil: boolean? }?): Type<unknown>
+function GreenTeaLeaf.unknown(options: { allowNil: boolean? }?): Schema<unknown>
 	local allowNil = if options then options.allowNil == true else false
 	local schema: RuntimeType<unknown> = makeType("unknown", if allowNil then "unknown?" else "unknown", function(pack)
 		local input = pack[1]
@@ -919,24 +1022,22 @@ function GreenTeaLeaf.unknown(options: { allowNil: boolean? }?): Type<unknown>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches no values.
-function GreenTeaLeaf.never(): Type<never>
-	local schema = (
-		makeType("never", "never", function(pack)
-			return err(nil, pack[1], "expected never")
-		end) :: unknown
-	) :: RuntimeType<never>
-	return schema
+function GreenTeaLeaf.never(): Schema<never>
+	local schema = makeType("never", "never", function(pack)
+		return err(nil, pack[1], "expected never")
+	end)
+	return (schema :: any) :: Type<never>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches boolean values.
-function GreenTeaLeaf.boolean(): Type<boolean>
+function GreenTeaLeaf.boolean(): Schema<boolean>
 	return (basic("boolean") :: unknown) :: RuntimeType<boolean>
 end
 
 GreenTeaLeaf.bool = GreenTeaLeaf.boolean
 
 --- Creates a new GreenTeaLeaf Type that matches nil values.
-function GreenTeaLeaf.none(): Type<nil>
+function GreenTeaLeaf.none(): Schema<nil>
 	return (basic("nil") :: unknown) :: RuntimeType<nil>
 end
 
@@ -947,7 +1048,7 @@ function GreenTeaLeaf.number(limits: {
 	range: RangeInput?,
 	integer: boolean?,
 	nan: boolean?,
-}?): Type<number>
+}?): Schema<number>
 	local range = if limits then parseRange(limits.range) else nil
 	local integer = if limits then limits.integer == true else false
 	local nan = if limits then limits.nan == true else false
@@ -987,7 +1088,7 @@ function GreenTeaLeaf.string(limits: {
 	bytes: RangeInput?,
 	graphemes: RangeInput?,
 	unicode: boolean?,
-}?): Type<string>
+}?): Schema<string>
 	local bytes = if limits then parseRange(limits.bytes) else nil
 	local pattern = if limits then limits.pattern else nil
 
@@ -1022,13 +1123,11 @@ end
 
 --- Creates a new GreenTeaLeaf Type that matches a value literally.\
 --- This is checked with a basic == comparison.
-function GreenTeaLeaf.literal<T>(value: T | "__GreenTeaLeafLiteralInferenceSentinel"): Type<StripLiteralSentinel<T>>
+function GreenTeaLeaf.literal<T>(value: T | "__GreenTeaLeafLiteralInferenceSentinel"): Schema<StripLiteralSentinel<T>>
 	local schema = (
 		makeType("literal", tostring(value), function(pack)
 			local input = pack[1]
-			return if input == value
-				then ok()
-				else errVerbatim(input, `expected {typeof(value)} literal`)
+			return if input == value then ok() else errVerbatim(input, `expected {typeof(value)} literal`)
 		end) :: unknown
 	) :: RuntimeType<StripLiteralSentinel<T>>
 
@@ -1038,16 +1137,18 @@ end
 
 --- Creates a new GreenTeaLeaf Type that matches one of several literal values.\
 --- This is especially useful for preserving string literal unions from an array literal.
-function GreenTeaLeaf.literals<T>(values: { T } | { "__GreenTeaLeafLiteralInferenceSentinel" }): Type<StripLiteralSentinel<T>>
+function GreenTeaLeaf.literals<T>(
+	values: { T } | { "__GreenTeaLeafLiteralInferenceSentinel" }
+): Schema<StripLiteralSentinel<T>>
 	assert(typeof(values) == "table", "literals must receive an array of literal values")
 
 	local contents: { RuntimeType<unknown> } = {}
-	local exportedContents: { Type<unknown> } = {}
+	local exportedContents: { Schema<unknown> } = {}
 
 	for _, value in values :: { [unknown]: unknown } do
 		local schema = asRuntime(GreenTeaLeaf.literal(value))
 		contents[#contents + 1] = schema
-		exportedContents[#exportedContents + 1] = schema
+		exportedContents[#exportedContents + 1] = schema :: Schema<unknown>
 	end
 
 	assert(#contents > 0, "literals must contain at least one value")
@@ -1075,7 +1176,7 @@ GreenTeaLeaf.literalUnion = GreenTeaLeaf.literals
 GreenTeaLeaf.oneOfLiterals = GreenTeaLeaf.literals
 
 --- Creates a new GreenTeaLeaf Type that matches any `typeof(value)` type.
-function GreenTeaLeaf.isTypeof(typeName: PrimitiveKind | string): Type<unknown>
+function GreenTeaLeaf.isTypeof(typeName: PrimitiveKind | string): Schema<unknown>
 	local schema: RuntimeType<unknown> = makeType("basic", typeName, function(pack)
 		local input = pack[1]
 		return if typeof(input) == typeName then ok() else err(nil, input, `expected typeof {typeName}`)
@@ -1087,7 +1188,7 @@ function GreenTeaLeaf.isTypeof(typeName: PrimitiveKind | string): Type<unknown>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches any `type(value)` type.
-function GreenTeaLeaf.isType(typeName: PrimitiveKind | string): Type<unknown>
+function GreenTeaLeaf.isType(typeName: PrimitiveKind | string): Schema<unknown>
 	local schema: RuntimeType<unknown> = makeType("basic", typeName, function(pack)
 		local input = pack[1]
 		return if type(input) == typeName then ok() else err(nil, input, `expected type {typeName}`)
@@ -1097,7 +1198,11 @@ end
 
 --- Creates a new GreenTeaLeaf Type that matches a custom typechecker
 --- with a GreenTeaLeaf type as a base.
-function GreenTeaLeaf.withCustom<T>(schema: Type<T>, typechecker: (unknown) -> (boolean, unknown?), name: string?): Type<T>
+function GreenTeaLeaf.withCustom<T>(
+	schema: Schema<T>,
+	typechecker: (unknown) -> (boolean, unknown?),
+	name: string?
+): Schema<T>
 	local inner = asRuntime(schema)
 	local typeName = name or "custom"
 
@@ -1121,12 +1226,12 @@ end
 
 --- Creates a new GreenTeaLeaf Type that matches a custom typechecker
 --- with `unknown` as the base type.
-function GreenTeaLeaf.custom(typechecker: (unknown) -> (boolean, unknown?), name: string?): Type<unknown>
-	return GreenTeaLeaf.withCustom(GreenTeaLeaf.unknown { allowNil = true }, typechecker, name)
+function GreenTeaLeaf.custom(typechecker: (unknown) -> (boolean, unknown?), name: string?): Schema<unknown>
+	return GreenTeaLeaf.withCustom(GreenTeaLeaf.unknown({ allowNil = true }), typechecker, name)
 end
 
 --- Creates a new GreenTeaLeaf Type that matches coroutine values.
-function GreenTeaLeaf.thread(options: { status: string | { string } | nil }?): Type<thread>
+function GreenTeaLeaf.thread(options: { status: string | { string } | nil }?): Schema<thread>
 	local allowed: { [string]: boolean }? = nil
 	if options and options.status ~= nil then
 		allowed = {}
@@ -1162,16 +1267,16 @@ end
 GreenTeaLeaf.coroutine = GreenTeaLeaf.thread
 
 --- Creates a new GreenTeaLeaf Type that matches buffer values.
-function GreenTeaLeaf.buffer(): Type<buffer>
+function GreenTeaLeaf.buffer(): Schema<buffer>
 	return (basic("buffer") :: unknown) :: RuntimeType<buffer>
 end
 
-function GreenTeaLeaf.userdata(): Type<unknown>
+function GreenTeaLeaf.userdata(): Schema<unknown>
 	return basic("userdata")
 end
 
 --- Creates a new GreenTeaLeaf Type that matches a repeating value.
-function GreenTeaLeaf.vararg<T>(schema: Type<T>, options: { count: RangeInput? }?): Type<T>
+function GreenTeaLeaf.vararg<T>(schema: Schema<T>, options: { count: RangeInput? }?): VarargType<T>
 	local inner = asRuntime(schema)
 	local count = if options then parseRange(options.count) else nil
 
@@ -1193,7 +1298,7 @@ function GreenTeaLeaf.vararg<T>(schema: Type<T>, options: { count: RangeInput? }
 	) :: RuntimeType<T>
 
 	result.vararg = { type = inner, length = count }
-	return result
+	return result :: VarargType<T>
 end
 
 local function tupleLocationSegment(index: number, role: TupleRole?): string
@@ -1231,7 +1336,10 @@ local function tupleWithRole(role: TupleRole?, ...: unknown): Type<unknown>
 
 	local result: RuntimeType<unknown> = makeType("tuple", "tuple", function(pack)
 		if varargType == nil and pack.n > #contents then
-			return qualifyCause(err(nil, pack[#contents + 1], "unexpected value"), tupleLocationSegment(#contents + 1, role))
+			return qualifyCause(
+				err(nil, pack[#contents + 1], "unexpected value"),
+				tupleLocationSegment(#contents + 1, role)
+			)
 		end
 
 		for index, schema in contents do
@@ -1253,32 +1361,51 @@ local function tupleWithRole(role: TupleRole?, ...: unknown): Type<unknown>
 		return ok()
 	end)
 
-	result.tuple = { contents = contents, vararg = varargType }
+	result.tuple = { contents = contents :: { Schema<unknown> }, vararg = varargType :: Schema<unknown>? }
 	result._tupleRole = role
 	return result
 end
 
 --- Creates a new GreenTeaLeaf Type that matches a tuple of values.\
 --- Specify the final value with GreenTeaLeaf.vararg to match a repeating final value.
-function GreenTeaLeaf.tuple(...: unknown): Type<unknown>
+type TupleBuilderType =
+	(() -> TupleType<>)
+	& (<A>(Schema<A>) -> TupleType<A>)
+	& (<A, B>(Schema<A>, Schema<B>) -> TupleType<A, B>)
+	& (<A, B, C>(Schema<A>, Schema<B>, Schema<C>) -> TupleType<A, B, C>)
+	& (<A, B, C, D>(Schema<A>, Schema<B>, Schema<C>, Schema<D>) -> TupleType<A, B, C, D>)
+	& (<A, B, C, D, E>(Schema<A>, Schema<B>, Schema<C>, Schema<D>, Schema<E>) -> TupleType<A, B, C, D, E>)
+
+local function tupleImpl(...: unknown): Type<unknown>
 	return tupleWithRole(nil, ...)
 end
 
+local tuple = (tupleImpl :: unknown) :: TupleBuilderType
+GreenTeaLeaf.tuple = tuple
+
 --- Used for GreenTeaLeaf.fn only. This is used to pass args to GreenTeaLeaf.fn ergonomically.
-function GreenTeaLeaf.args(...: unknown): Type<unknown>
+local function argsImpl(...: unknown): Type<unknown>
 	return tupleWithRole("argument", ...)
 end
 
+local args = (argsImpl :: unknown) :: TupleBuilderType
+GreenTeaLeaf.args = args
+
 --- Used for GreenTeaLeaf.fn only. This is used to pass returns to GreenTeaLeaf.fn ergonomically.
-function GreenTeaLeaf.returns(...: unknown): Type<unknown>
+local function returnsImpl(...: unknown): Type<unknown>
 	return tupleWithRole("return", ...)
 end
+
+local returns = (returnsImpl :: unknown) :: TupleBuilderType
+GreenTeaLeaf.returns = returns
+
+type FnBuilderType = <Args..., Returns...>(TupleType<Args...>, TupleType<Returns...>) -> FnType<(Args...) -> Returns...>
 
 --- Creates a new GreenTeaLeaf Type that matches a function.\
 --- This cannot perform any runtime checks on the function's args or returns.\
 --- The args and returns exist primarily to have an accurate Luau type.\
 --- They can also be inspected at runtime with `type.fn.args` and `type.fn.returns`.
-function GreenTeaLeaf.fn<Args..., Returns...>(args: unknown, returns: unknown): Type<(Args...) -> Returns...>
+local function fnImpl(args: unknown, returns: unknown): Type<(...unknown) -> ...unknown>
 	local argsRuntime = asRuntime(args)
 	local returnsRuntime = asRuntime(returns)
 
@@ -1287,34 +1414,40 @@ function GreenTeaLeaf.fn<Args..., Returns...>(args: unknown, returns: unknown): 
 			local input = pack[1]
 			return if typeof(input) == "function" then ok() else err(nil, input, "expected function")
 		end) :: unknown
-	) :: RuntimeType<(Args...) -> Returns...>
+	) :: RuntimeType<(...unknown) -> ...unknown>
 
 	result.fn = { args = argsRuntime, returns = returnsRuntime }
 	result._fnInfo = { args = argsRuntime, returns = returnsRuntime }
 	return result
 end
 
+local fn = (fnImpl :: unknown) :: FnBuilderType
+GreenTeaLeaf.fn = fn
+
 --- Creates a new GreenTeaLeaf Type that matches a function with any args and any returns.
-function GreenTeaLeaf.anyfn(): Type<(...unknown) -> ...unknown>
+function GreenTeaLeaf.anyfn(): FnType<(...unknown) -> ...unknown>
 	return (
-		GreenTeaLeaf.fn(
-			GreenTeaLeaf.args(GreenTeaLeaf.vararg(GreenTeaLeaf.unknown { allowNil = true })),
-			GreenTeaLeaf.returns(GreenTeaLeaf.vararg(GreenTeaLeaf.unknown { allowNil = true }))
+		fnImpl(
+			argsImpl(GreenTeaLeaf.vararg(GreenTeaLeaf.unknown({ allowNil = true }))),
+			returnsImpl(GreenTeaLeaf.vararg(GreenTeaLeaf.unknown({ allowNil = true })))
 		) :: unknown
-	) :: Type<(...unknown) -> ...unknown>
+	) :: FnType<(...unknown) -> ...unknown>
 end
 
 --- Creates a new GreenTeaLeaf Type that "smuggles" a tuple as a single value by
 --- packing it into the returns.
-function GreenTeaLeaf.tuplePacked<T...>(...: Type<unknown>): Type<TuplePacked<T...>>
-	return (GreenTeaLeaf.fn(GreenTeaLeaf.args(), GreenTeaLeaf.returns(...)) :: unknown) :: Type<TuplePacked<T...>>
+function GreenTeaLeaf.tuplePacked<T...>(...: Schema<unknown>): Schema<TuplePacked<T...>>
+	return (fnImpl(argsImpl(), returnsImpl(...)) :: unknown) :: Schema<TuplePacked<T...>>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches a table.\
 --- The `contents` table should be a dictionary of string keys to types.\
 --- An indexer can be provided with `{ [keyGreenTeaLeafType] = valueType }`.
-function GreenTeaLeaf.table<T>(contents: T, options: { array: boolean?, count: RangeInput?, raw: boolean? }?): Type<StructOf<T>>
-	local rawContents: { [string]: Type<unknown> } = {}
+function GreenTeaLeaf.table<T>(
+	contents: T,
+	options: { array: boolean?, count: RangeInput?, raw: boolean? }?
+): Schema<StructOf<T>>
+	local rawContents: { [string]: Schema<unknown> } = {}
 	local indexerKey: RuntimeType<unknown>? = nil
 	local indexerValue: RuntimeType<unknown>? = nil
 	local count = if options then parseRange(options.count) else nil
@@ -1333,9 +1466,9 @@ function GreenTeaLeaf.table<T>(contents: T, options: { array: boolean?, count: R
 			indexerKey = asRuntime(GreenTeaLeaf.number())
 			indexerValue = asRuntime(value)
 		elseif typeof(key) == "string" then
-			rawContents[key :: string] = asRuntime(value)
+			rawContents[key :: string] = asRuntime(value) :: Schema<unknown>
 		elseif raw then
-			rawContents[tostring(key)] = asRuntime(value)
+			rawContents[tostring(key)] = asRuntime(value) :: Schema<unknown>
 		else
 			error("tables must use string keys, number indexers, or GreenTeaLeaf type keys", 2)
 		end
@@ -1413,41 +1546,45 @@ GreenTeaLeaf.struct = GreenTeaLeaf.table
 
 --- Creates a new GreenTeaLeaf Type that matches an array of values.\
 --- Convenience function that calls GreenTeaLeaf.table internally.
-function GreenTeaLeaf.array<T>(schema: Type<T>, options: { count: RangeInput? }?): Type<{ T }>
+function GreenTeaLeaf.array<T>(schema: Schema<T>, options: { count: RangeInput? }?): Schema<{ T }>
 	local result = GreenTeaLeaf.table({ schema }, { array = true, count = if options then options.count else nil })
-	return result :: Type<{ T }>
+	return result :: Schema<{ T }>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches a dictionary of values.\
 --- Convenience function that calls GreenTeaLeaf.table internally.
-function GreenTeaLeaf.dictionary<K, V>(key: Type<K>, value: Type<V>, options: { count: RangeInput? }?): Type<{ [K]: V }>
+function GreenTeaLeaf.dictionary<K, V>(key: Schema<K>, value: Schema<V>, options: { count: RangeInput? }?): Schema<{ [K]: V }>
 	local contents: { [unknown]: unknown } = {}
 	contents[key] = value
 	local result = GreenTeaLeaf.table(contents, { count = if options then options.count else nil })
-	return result :: Type<{ [K]: V }>
+	return result :: Schema<{ [K]: V }>
 end
 
 --- Creates a new GreenTeaLeaf Type that matches any table.
-function GreenTeaLeaf.anyTable(options: { count: RangeInput? }?): Type<{ [unknown]: unknown }>
-	return GreenTeaLeaf.dictionary(GreenTeaLeaf.unknown { allowNil = true }, GreenTeaLeaf.unknown { allowNil = true }, options)
+function GreenTeaLeaf.anyTable(options: { count: RangeInput? }?): Schema<{ [unknown]: unknown }>
+	return GreenTeaLeaf.dictionary(
+		GreenTeaLeaf.unknown({ allowNil = true }),
+		GreenTeaLeaf.unknown({ allowNil = true }),
+		options
+	)
 end
 
 type UnionType =
-	(<A, B>(A, B) -> Type<Union2<A, B>>)
-	& (<A, B, C>(A, B, C) -> Type<Union3<A, B, C>>)
-	& (<A, B, C, D>(A, B, C, D) -> Type<Union4<A, B, C, D>>)
-	& (<A, B, C, D, E>(A, B, C, D, E) -> Type<Union5<A, B, C, D, E>>)
+	(<A, B>(Schema<A>, Schema<B>) -> Schema<A | B>)
+	& (<A, B, C>(Schema<A>, Schema<B>, Schema<C>) -> Schema<A | B | C>)
+	& (<A, B, C, D>(Schema<A>, Schema<B>, Schema<C>, Schema<D>) -> Schema<A | B | C | D>)
+	& (<A, B, C, D, E>(Schema<A>, Schema<B>, Schema<C>, Schema<D>, Schema<E>) -> Schema<A | B | C | D | E>)
 
 local unionImpl = function(...: Type<unknown>): Type<unknown>
 	local packed = table.pack(...)
 	local contents: { RuntimeType<unknown> } = {}
-	local exportedContents: { Type<unknown> } = {}
+	local exportedContents: { Schema<unknown> } = {}
 	local optional = false
 
 	for index = 1, packed.n do
 		local schema = asRuntime(packed[index])
 		contents[index] = schema
-		exportedContents[index] = schema
+		exportedContents[index] = schema :: Schema<unknown>
 		if schema._basicTypeof == "nil" then
 			optional = true
 		end
@@ -1496,20 +1633,20 @@ GreenTeaLeaf.union = union
 GreenTeaLeaf.oneOf = union
 
 type IntersectionType =
-	(<A, B>(A, B) -> Type<Intersection2<A, B>>)
-	& (<A, B, C>(A, B, C) -> Type<Intersection3<A, B, C>>)
-	& (<A, B, C, D>(A, B, C, D) -> Type<Intersection4<A, B, C, D>>)
-	& (<A, B, C, D, E>(A, B, C, D, E) -> Type<Intersection5<A, B, C, D, E>>)
+	(<A, B>(Schema<A>, Schema<B>) -> Schema<A & B>)
+	& (<A, B, C>(Schema<A>, Schema<B>, Schema<C>) -> Schema<A & B & C>)
+	& (<A, B, C, D>(Schema<A>, Schema<B>, Schema<C>, Schema<D>) -> Schema<A & B & C & D>)
+	& (<A, B, C, D, E>(Schema<A>, Schema<B>, Schema<C>, Schema<D>, Schema<E>) -> Schema<A & B & C & D & E>)
 
 local intersectionImpl = function(...: Type<unknown>): Type<unknown>
 	local packed = table.pack(...)
 	local contents: { RuntimeType<unknown> } = {}
-	local exportedContents: { Type<unknown> } = {}
+	local exportedContents: { Schema<unknown> } = {}
 
 	for index = 1, packed.n do
 		local schema = asRuntime(packed[index])
 		contents[index] = schema
-		exportedContents[index] = schema
+		exportedContents[index] = schema :: Schema<unknown>
 	end
 
 	assert(#contents > 0, "intersection must have at least one type")
@@ -1523,9 +1660,7 @@ local intersectionImpl = function(...: Type<unknown>): Type<unknown>
 			end
 		end
 
-		return if #causes == 0
-			then ok()
-			else mergeErrs("did not match every intersection member", nil, pack[1], causes)
+		return if #causes == 0 then ok() else mergeErrs("did not match every intersection member", nil, pack[1], causes)
 	end)
 
 	result.intersection = { contents = exportedContents }
@@ -1544,7 +1679,7 @@ GreenTeaLeaf.allOf = intersection
 
 --- Creates a new GreenTeaLeaf Type that makes a value optional,
 --- like `type?` or `type | nil` in Luau types.
-function GreenTeaLeaf.optional<T>(schema: Type<T>): Type<T?>
+function GreenTeaLeaf.optional<T>(schema: Schema<T>): Schema<T?>
 	return (GreenTeaLeaf.union(schema, GreenTeaLeaf.none()) :: unknown) :: Type<T?>
 end
 
@@ -1552,7 +1687,7 @@ GreenTeaLeaf.opt = GreenTeaLeaf.optional
 
 --- Creates a new GreenTeaLeaf Type matching the inferred type of `value`.\
 --- At runtime, this passes tables to `GreenTeaLeaf.table`, functions to `GreenTeaLeaf.fn`, and so on.
-function GreenTeaLeaf.typeof<T>(value: T, recursionCheck: { [unknown]: unknown }?): Type<T>
+function GreenTeaLeaf.typeof<T>(value: T, recursionCheck: { [unknown]: unknown }?): Schema<T>
 	if isTypeObject(value) then
 		return (value :: unknown) :: Type<T>
 	end
@@ -1595,32 +1730,35 @@ function GreenTeaLeaf.typeof<T>(value: T, recursionCheck: { [unknown]: unknown }
 	return GreenTeaLeaf.table(shape) :: Type<T>
 end
 
---- Typecasts a value to a GreenTeaLeaf type.\
---- At runtime this will error if the passed-in value is not a GreenTeaLeaf type.
-function GreenTeaLeaf.typecast<S>(value: S): Type<ValueOf<S>>
+type TypecastType = <S>(value: S) -> S & TypeBase
+
+local function typecastImpl<S>(value: S): S & TypeBase
 	assert(isTypeObject(value), "value must be a GreenTeaLeaf type")
-	return (value :: unknown) :: Type<ValueOf<S>>
+	return (value :: any) :: S & TypeBase
 end
 
-GreenTeaLeaf.asGreenTeaLeafType = GreenTeaLeaf.typecast
-GreenTeaLeaf.asGtType = GreenTeaLeaf.typecast
+--- Typecasts a value to a GreenTeaLeaf type.\
+--- At runtime this will error if the passed-in value is not a GreenTeaLeaf type.
+local typecast = (typecastImpl :: unknown) :: TypecastType
+GreenTeaLeaf.typecast = typecast
+GreenTeaLeaf.asGreenTeaLeafType = typecast
+GreenTeaLeaf.asGtType = typecast
 
 --- Typecasts a value to be a GreenTeaLeaf type.\
 --- This is the preferred way to build a GreenTeaLeaf type for typical use.
-function GreenTeaLeaf.build<S>(schema: S): Type<ValueOf<S>>
-	return GreenTeaLeaf.typecast(schema)
-end
+local build = (typecastImpl :: unknown) :: TypecastType
+GreenTeaLeaf.build = build
 
 --- Adds user-specified metadata to a type.\
 --- Each key/value pair is added to the type's `meta` table.
-function GreenTeaLeaf.meta<T>(schema: Type<T>, meta: { [string]: unknown }): Type<T>
+function GreenTeaLeaf.meta<T>(schema: Schema<T>, meta: { [string]: unknown }): Type<T>
 	local runtime = asRuntime(schema)
 	runtime.meta = meta
-	return schema
+	return (schema :: any) :: Type<T>
 end
 
 --- Wraps a function with type asserts for its input args and returns.
-function GreenTeaLeaf.wrapFn<T>(schema: Type<T>, fn: T): T
+function GreenTeaLeaf.wrapFn<T>(schema: Schema<T>, fn: T): T
 	local runtime = asRuntime(schema)
 	assert(runtime._fnInfo ~= nil, "schema must be a GreenTeaLeaf.fn type")
 
@@ -1636,7 +1774,7 @@ end
 
 --- Wraps a function with type asserts for its input args only.\
 --- See `GreenTeaLeaf.wrapFn` for more information.
-function GreenTeaLeaf.wrapFnArgs<T>(schema: Type<T>, fn: T): T
+function GreenTeaLeaf.wrapFnArgs<T>(schema: Schema<T>, fn: T): T
 	local runtime = asRuntime(schema)
 	assert(runtime._fnInfo ~= nil, "schema must be a GreenTeaLeaf.fn type")
 
@@ -1652,7 +1790,7 @@ end
 
 --- Wraps a function with type asserts for its returns only.\
 --- See `GreenTeaLeaf.wrapFn` for more information.
-function GreenTeaLeaf.wrapFnReturns<T>(schema: Type<T>, fn: T): T
+function GreenTeaLeaf.wrapFnReturns<T>(schema: Schema<T>, fn: T): T
 	local runtime = asRuntime(schema)
 	assert(runtime._fnInfo ~= nil, "schema must be a GreenTeaLeaf.fn type")
 
@@ -1666,12 +1804,12 @@ function GreenTeaLeaf.wrapFnReturns<T>(schema: Type<T>, fn: T): T
 end
 
 --- Creates a new GreenTeaLeaf Type that matches Instance values.
-function GreenTeaLeaf.Instance(): Type<unknown>
+function GreenTeaLeaf.Instance(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Instance")
 end
 
 --- Call isA to get a type that matches instances of that class.
-function GreenTeaLeaf.isA(className: string): Type<unknown>
+function GreenTeaLeaf.isA(className: string): Schema<unknown>
 	local schema: RuntimeType<unknown> = makeType("instanceIsA", className, function(pack)
 		local input = pack[1]
 		if typeof(input) ~= "table" and typeof(input) ~= "userdata" then
@@ -1693,57 +1831,57 @@ end
 
 GreenTeaLeaf.IsA = GreenTeaLeaf.isA
 
-function GreenTeaLeaf.Vector2(): Type<unknown>
+function GreenTeaLeaf.Vector2(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Vector2")
 end
 
 GreenTeaLeaf.vector = GreenTeaLeaf.Vector2
 
-function GreenTeaLeaf.Vector3(): Type<unknown>
+function GreenTeaLeaf.Vector3(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Vector3")
 end
 
-function GreenTeaLeaf.CFrame(): Type<unknown>
+function GreenTeaLeaf.CFrame(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("CFrame")
 end
 
-function GreenTeaLeaf.Color3(): Type<unknown>
+function GreenTeaLeaf.Color3(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Color3")
 end
 
-function GreenTeaLeaf.UDim(): Type<unknown>
+function GreenTeaLeaf.UDim(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("UDim")
 end
 
-function GreenTeaLeaf.UDim2(): Type<unknown>
+function GreenTeaLeaf.UDim2(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("UDim2")
 end
 
-function GreenTeaLeaf.Ray(): Type<unknown>
+function GreenTeaLeaf.Ray(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Ray")
 end
 
-function GreenTeaLeaf.Rect(): Type<unknown>
+function GreenTeaLeaf.Rect(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Rect")
 end
 
-function GreenTeaLeaf.Region3(): Type<unknown>
+function GreenTeaLeaf.Region3(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Region3")
 end
 
-function GreenTeaLeaf.BrickColor(): Type<unknown>
+function GreenTeaLeaf.BrickColor(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("BrickColor")
 end
 
-function GreenTeaLeaf.Font(): Type<unknown>
+function GreenTeaLeaf.Font(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Font")
 end
 
-function GreenTeaLeaf.Enum(): Type<unknown>
+function GreenTeaLeaf.Enum(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("Enum")
 end
 
-function GreenTeaLeaf.EnumItem(): Type<unknown>
+function GreenTeaLeaf.EnumItem(): Schema<unknown>
 	return GreenTeaLeaf.isTypeof("EnumItem")
 end
 

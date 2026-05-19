@@ -2,7 +2,7 @@
 
 local GreenTeaLeaf = require("./GreenTeaLeaf")
 
-type InstanceSchemaFactory = () -> GreenTeaLeaf.Type<unknown>
+type InstanceSchemaFactory = () -> GreenTeaLeaf.Schema<unknown>
 
 local function class(className: string): InstanceSchemaFactory
 	return function()
