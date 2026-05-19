@@ -97,8 +97,6 @@ exec("wally publish")
 -- Publish lune version
 -- (makes temporary changes which we use Git to undo)
 
-exec("lune run prepare-lune-version", { shell = true })
-
 -- Add lune to release
 
 if fs.isDir("lune-build") then
